@@ -196,9 +196,9 @@ def get_all_datasets(args: Namespace) -> ContinualDataset:
     """
     #You can create custom domain sequence here
         #You can create custom domain sequence here
-    #dataset_names = ['seq-eurosat-rgb', 'seq-tinyimg','seq-imagenet-r', 'seq-cub200', 'seq-cifar100','seq-mnist','seq-resisc45', 'seq-chestx','seq-cifar10', 'seq-cropdisease']
+    dataset_names = ['seq-eurosat-rgb', 'seq-tinyimg','seq-imagenet-r', 'seq-cub200', 'seq-cifar100','seq-mnist','seq-resisc45', 'seq-chestx','seq-cifar10', 'seq-cropdisease']
     # dataset_names = ['seq-cifar10', 'seq-cropdisease', 'seq-mnist', 'seq-resisc45', 'seq-eurosat-rgb', 'seq-tinyimg', 'seq-cifar100', 'seq-chestx', 'seq-imagenet-r', 'seq-cub200']
-    dataset_names = ['seq-cub200']
+    #dataset_names = ['seq-cub200']
     # For single dataset usage, only load the specified dataset
     dataset_list = []
 
