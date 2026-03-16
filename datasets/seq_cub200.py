@@ -15,50 +15,6 @@ from torch.utils.data import Dataset
 from torchvision.transforms.functional import InterpolationMode
 
 
-CUB200_DOWNLOAD_LINKS = [
-    # Original Mammoth link (legacy embed format).
-    '<iframe src="https://onedrive.live.com/embed?cid=D3924A2D106E0039&resid=D3924A2D106E0039%21110&authkey=AIEfi5nlRyY1yaE" width="98" height="120" frameborder="0" scrolling="no"></iframe>',
-    # Direct OneDrive download URL for the same file.
-    'https://onedrive.live.com/download?cid=D3924A2D106E0039&resid=D3924A2D106E0039%21110&authkey=AIEfi5nlRyY1yaE',
-]
-
-
-def _cub200_ready(root: str) -> bool:
-    required_files = (
-        smart_joint(root, 'train_data.npz'),
-        smart_joint(root, 'test_data.npz'),
-    )
-    return all(os.path.isfile(p) for p in required_files)
-
-
-def _download_cub200(root: str) -> None:
-    from onedrivedownloader import download
-
-    links = []
-    custom_link = os.environ.get('MAMMOTH_CUB200_URL', '').strip()
-    if custom_link:
-        links.append(custom_link)
-    links.extend(CUB200_DOWNLOAD_LINKS)
-
-    last_error = None
-    for idx, link in enumerate(links):
-        try:
-            print(f'Downloading CUB200 dataset (source {idx + 1}/{len(links)})')
-            download(link, filename=smart_joint(root, 'cub_200_2011.zip'), unzip=True, unzip_path=root, clean=True)
-            if _cub200_ready(root):
-                return
-            raise RuntimeError('Download succeeded but expected files train_data.npz/test_data.npz were not found.')
-        except Exception as exc:
-            last_error = exc
-
-    raise RuntimeError(
-        'CUB200 download failed from all known links. '
-        'Set MAMMOTH_CUB200_URL to a valid SharePoint/OneDrive URL or place '
-        'train_data.npz and test_data.npz in the CUB200 root folder. '
-        f'Last error: {last_error}'
-    )
-
-
 class MyCUB200(Dataset):
     """
     Overrides dataset to change the getitem function.
@@ -78,11 +34,13 @@ class MyCUB200(Dataset):
         self.download = download
 
         if download:
-            if _cub200_ready(root):
+            if os.path.isdir(root) and len(os.listdir(root)) > 0:
                 print('Download not needed, files already on disk.')
             else:
+                from onedrivedownloader import download
+                ln = 'https://onedrive.live.com/download?cid=D3924A2D106E0039&resid=D3924A2D106E0039%21110&authkey=AIEfi5nlRyY1yaE'
                 print('Downloading dataset')
-                _download_cub200(root)
+                download(ln, filename=smart_joint(root, 'cub_200_2011.zip'), unzip=True, unzip_path=root, clean=True)
 
         data_file = np.load(smart_joint(root, 'train_data.npz' if train else 'test_data.npz'), allow_pickle=True)
 
