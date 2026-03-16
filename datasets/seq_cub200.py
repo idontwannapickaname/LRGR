@@ -15,6 +15,31 @@ from torch.utils.data import Dataset
 from torchvision.transforms.functional import InterpolationMode
 
 
+CUB200_HF_REPO_ID = 'nguyenhieu3205xt/cub-200-data'
+
+
+def _cub200_ready(root: str) -> bool:
+    return os.path.isfile(smart_joint(root, 'train_data.npz')) and os.path.isfile(smart_joint(root, 'test_data.npz'))
+
+
+def _download_cub200_from_hf(root: str) -> None:
+    try:
+        from huggingface_hub import hf_hub_download
+    except ImportError as exc:
+        raise ImportError('huggingface_hub is required to download CUB200. Install it with "pip install huggingface_hub".') from exc
+
+    os.makedirs(root, exist_ok=True)
+
+    repo_id = os.environ.get('MAMMOTH_CUB200_HF_REPO', CUB200_HF_REPO_ID).strip() or CUB200_HF_REPO_ID
+    for filename in ('train_data.npz', 'test_data.npz'):
+        hf_hub_download(
+            repo_id=repo_id,
+            repo_type='dataset',
+            filename=filename,
+            local_dir=root,
+        )
+
+
 class MyCUB200(Dataset):
     """
     Overrides dataset to change the getitem function.
@@ -25,7 +50,7 @@ class MyCUB200(Dataset):
     def __init__(self, root, train=True, transform=None,
                  target_transform=None, download=True) -> None:
         self.not_aug_transform = transforms.Compose([
-            transforms.Resize(MyCUB200.IMG_SIZE, interpolation=InterpolationMode.BICUBIC),
+            transforms.Resize((MyCUB200.IMG_SIZE, MyCUB200.IMG_SIZE), interpolation=InterpolationMode.BICUBIC),
             transforms.ToTensor()])
         self.root = root
         self.train = train
@@ -34,13 +59,11 @@ class MyCUB200(Dataset):
         self.download = download
 
         if download:
-            if os.path.isdir(root) and len(os.listdir(root)) > 0:
+            if _cub200_ready(root):
                 print('Download not needed, files already on disk.')
             else:
-                from onedrivedownloader import download
-                ln = '<iframe src="https://onedrive.live.com/embed?cid=D3924A2D106E0039&resid=D3924A2D106E0039%21110&authkey=AIEfi5nlRyY1yaE" width="98" height="120" frameborder="0" scrolling="no"></iframe>'
-                print('Downloading dataset')
-                download(ln, filename=smart_joint(root, 'cub_200_2011.zip'), unzip=True, unzip_path=root, clean=True)
+                print('Downloading CUB200 dataset from Hugging Face Hub')
+                _download_cub200_from_hf(root)
 
         data_file = np.load(smart_joint(root, 'train_data.npz' if train else 'test_data.npz'), allow_pickle=True)
 
