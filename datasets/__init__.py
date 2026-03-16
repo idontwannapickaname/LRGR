@@ -196,9 +196,9 @@ def get_all_datasets(args: Namespace) -> ContinualDataset:
     """
     #You can create custom domain sequence here
         #You can create custom domain sequence here
-    dataset_names = ['seq-eurosat-rgb', 'seq-tinyimg','seq-imagenet-r', 'seq-cub200', 'seq-cifar100','seq-mnist','seq-resisc45', 'seq-chestx','seq-cifar10', 'seq-cropdisease']
+    #dataset_names = ['seq-eurosat-rgb', 'seq-tinyimg','seq-imagenet-r', 'seq-cub200', 'seq-cifar100','seq-mnist','seq-resisc45', 'seq-chestx','seq-cifar10', 'seq-cropdisease']
     # dataset_names = ['seq-cifar10', 'seq-cropdisease', 'seq-mnist', 'seq-resisc45', 'seq-eurosat-rgb', 'seq-tinyimg', 'seq-cifar100', 'seq-chestx', 'seq-imagenet-r', 'seq-cub200']
-    # dataset_names = ['seq-tinyimg', 'seq-resisc45', 'seq-cub200', 'seq-chestx', 'seq-imagenet-r', 'seq-eurosat-rgb', 'seq-mnist', 'seq-cifar10', 'seq-cropdisease','seq-cifar100']
+    dataset_names = ['seq-resisc45', 'seq-chestx', 'seq-mnist', 'seq-cifar10', 'seq-cropdisease','seq-cifar100', 'seq-cub200',]
     # For single dataset usage, only load the specified dataset
     dataset_list = []
 
@@ -213,7 +213,11 @@ def get_all_datasets(args: Namespace) -> ContinualDataset:
 
     return dataset_list
 
-# import all files in the `datasets` folder to register the datasets
+# import only the required dataset modules to register them (and trigger downloads only for these)
+_ALLOWED_DATASET_FILES = {
+    'seq_resisc45', 'seq_chestx', 'seq_mnist', 'seq_cifar10',
+    'seq_cropdisease', 'seq_cifar100', 'seq_cub200',
+}
 for file in os.listdir(os.path.dirname(__file__)):
-    if file.endswith('.py') and file != '__init__.py':
+    if file.endswith('.py') and file != '__init__.py' and file[:-3] in _ALLOWED_DATASET_FILES:
         importlib.import_module(f'datasets.{file[:-3]}')
