@@ -50,7 +50,7 @@ class MyCUB200(Dataset):
     def __init__(self, root, train=True, transform=None,
                  target_transform=None, download=True) -> None:
         self.not_aug_transform = transforms.Compose([
-            transforms.Resize(MyCUB200.IMG_SIZE, interpolation=InterpolationMode.BICUBIC),
+            transforms.Resize((MyCUB200.IMG_SIZE, MyCUB200.IMG_SIZE), interpolation=InterpolationMode.BICUBIC),
             transforms.ToTensor()])
         self.root = root
         self.train = train
