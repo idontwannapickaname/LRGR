@@ -302,7 +302,11 @@ def train(model: ContinualModel, datasets,
 
             model.net.train()
 
-            train_loader, test_loader = datasets[t].get_all_data_loaders()
+            if hasattr(datasets[t], 'get_all_data_loaders'):
+                train_loader, test_loader = datasets[t].get_all_data_loaders()
+            else:
+                # Backward compatibility for datasets that only expose get_data_loaders.
+                train_loader, test_loader = datasets[t].get_data_loaders()
 
             test_loaders.append(test_loader)
 

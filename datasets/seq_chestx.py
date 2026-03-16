@@ -10,7 +10,7 @@ from typing import Tuple
 from datasets.utils import set_default_from_args
 from utils import smart_joint
 from utils.conf import base_path
-from datasets.utils.continual_dataset import ContinualDataset, fix_class_names_order, store_masked_loaders
+from datasets.utils.continual_dataset import ContinualDataset, fix_class_names_order, store_masked_loaders, getAllLoaders
 from datasets.transforms.denormalization import DeNormalize
 from torchvision.transforms.functional import InterpolationMode
 from utils.prompt_templates import templates
@@ -133,6 +133,16 @@ class SequentialChestX(ContinualDataset):
 
         train, test = store_masked_loaders(train_dataset, test_dataset, self)
 
+        return train, test
+
+    def get_all_data_loaders(self):
+        train_dataset = ChestX(base_path() + 'chestx', train=True,
+                               download=True, transform=self.TRANSFORM)
+
+        test_dataset = ChestX(base_path() + 'chestx', train=False, download=True,
+                              transform=self.TEST_TRANSFORM)
+
+        train, test = getAllLoaders(train_dataset, test_dataset, self)
         return train, test
 
     def get_class_names(self):

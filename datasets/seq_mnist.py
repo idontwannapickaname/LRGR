@@ -23,8 +23,12 @@ class MyMNIST(MNIST):
     """
 
     def __init__(self, root, train=True, transform=None,
-                 target_transform=None, download=False) -> None:
-        self.not_aug_transform = transforms.ToTensor()
+                 target_transform=None, download=False, use_rgb: bool = False) -> None:
+        # Keep the not-aug sample shape aligned with the task transform.
+        self.not_aug_transform = transforms.Compose([
+            transforms.Lambda(lambda img: img.convert('RGB')),
+            transforms.ToTensor()
+        ]) if use_rgb else transforms.ToTensor()
         super(MyMNIST, self).__init__(root, train,
                                       transform, target_transform, download)
 
@@ -77,10 +81,21 @@ class SequentialMNIST(ContinualDataset):
     SIZE = (28, 28)
     TRANSFORM = None
 
+    def _use_rgb_mnist(self) -> bool:
+        """Enable RGB conversion only for LEAR runs that use ViT backbones."""
+        model_name = str(getattr(self.args, 'model', '')).lower()
+        backbone_name = str(getattr(self.args, 'backbone', '')).lower()
+        return 'lear' in model_name or 'lear' in backbone_name
+
     def get_data_loaders(self) -> Tuple[torch.utils.data.DataLoader, torch.utils.data.DataLoader]:
-        transform = transforms.ToTensor()
+        use_rgb = self._use_rgb_mnist()
+        transform = transforms.Compose([
+            transforms.Lambda(lambda img: img.convert('RGB')),
+            transforms.ToTensor()
+        ]) if use_rgb else transforms.ToTensor()
+
         train_dataset = MyMNIST(base_path() + 'MNIST',
-                                train=True, download=True, transform=transform)
+                                train=True, download=True, transform=transform, use_rgb=use_rgb)
         test_dataset = MNIST(base_path() + 'MNIST',
                              train=False, download=True, transform=transform)
 
