@@ -34,6 +34,21 @@ except ImportError:
 
 debug = True
 
+
+def _format_loss_log(loss, lr):
+    if isinstance(loss, float):
+        return {'loss_ce': loss, 'lr': lr}
+
+    if isinstance(loss, list):
+        loss_names = ['loss_ce', 'loss_kd', 'loss_nor', 'loss_mi', 'loss_ctird']
+        bar_log = {'lr': lr}
+        for idx, value in enumerate(loss):
+            key = loss_names[idx] if idx < len(loss_names) else f'loss_{idx}'
+            bar_log[key] = value
+        return bar_log
+
+    return {'loss_ce': loss, 'lr': lr}
+
 @torch.no_grad()
 def evaluate(model: ContinualModel, datasets, test_loaders, last=False, return_loss=False) -> Tuple[list, list]:
     """
@@ -107,6 +122,12 @@ def evaluate(model: ContinualModel, datasets, test_loaders, last=False, return_l
         if last and k < len(test_loaders) - 1:
             continue
         correct, correct_mask_classes, total = 0.0, 0.0, 0.0
+        rematch_stats = {
+            'direct_candidates': 0,
+            'direct_applied': 0,
+            'confidence_candidates': 0,
+            'confidence_applied': 0,
+        }
         test_iter = iter(test_loader)
         n_classes = datasets[k].N_CLASSES_PER_TASK * datasets[k].N_TASKS
         i = 0
@@ -125,7 +146,12 @@ def evaluate(model: ContinualModel, datasets, test_loaders, last=False, return_l
             if 'class-il' not in model.COMPATIBILITY and 'general-continual' not in model.COMPATIBILITY:
                 outputs = model(inputs, k)
             else:
-                outputs = model.myPrediction(inputs, expert_index_list[k] - 1)
+                if getattr(model.args, 'enable_local_hybrid_rematch', False):
+                    outputs, batch_stats = model.hybrid_rematch_logits(inputs, expert_index_list[k] - 1, n_classes=n_classes)
+                    for key in rematch_stats:
+                        rematch_stats[key] += batch_stats[key]
+                else:
+                    outputs = model.myPrediction(inputs, expert_index_list[k] - 1)
 
             _, pred = torch.max(outputs[:, :n_classes].data, 1)
             correct += torch.sum(pred == labels).item()
@@ -139,6 +165,8 @@ def evaluate(model: ContinualModel, datasets, test_loaders, last=False, return_l
                     if 'class-il' in model.COMPATIBILITY or 'general-continual' in model.COMPATIBILITY else 0)
         # accs_mask_classes.append(correct_mask_classes / total * 100)
         accs_mask_classes.append(0)
+        if getattr(model.args, 'enable_local_hybrid_rematch', False):
+            print(f'task {k + 1} rematch stats: {rematch_stats}')
     pbar.close()
 
     model.net.train(status)
@@ -236,12 +264,7 @@ def train_single_epoch(model: ContinualModel,
         time_diff = time() - previous_time
         previous_time = time()
 
-        if isinstance(loss,float):
-            bar_log = {'loss_ce': loss, 'lr': model.opt.param_groups[0]['lr']}
-        elif isinstance(loss,list) and len(loss) == 2:
-            bar_log = {'loss_ce': loss[0], 'loss_nor': loss[1], 'lr': model.opt.param_groups[0]['lr']}
-        else:
-            bar_log = {'loss_ce': loss[0],'loss_kd': loss[1],'loss_nor': loss[2], 'loss_mi': loss[3], 'lr': model.opt.param_groups[0]['lr']}
+        bar_log = _format_loss_log(loss, model.opt.param_groups[0]['lr'])
 
         if epoch_len:
             ep_h = 3600 / (epoch_len * time_diff)

@@ -103,15 +103,38 @@ class LEAR(MammothBackbone):
         out = self.classifierArr[self.c_expert](final_features)
         return out
 
+    def forward_experts(self, global_features, local_features, expert_indices):
+        if isinstance(expert_indices, int):
+            fcfeatures = self.fcArr[expert_indices](local_features)
+            final_features = torch.cat((global_features, fcfeatures), dim=1)
+            return self.classifierArr[expert_indices](final_features)
+
+        if not torch.is_tensor(expert_indices):
+            expert_indices = torch.tensor(expert_indices, device=global_features.device, dtype=torch.long)
+        else:
+            expert_indices = expert_indices.to(global_features.device, dtype=torch.long)
+
+        if expert_indices.ndim == 0:
+            return self.forward_experts(global_features, local_features, int(expert_indices.item()))
+
+        outputs = torch.empty(global_features.shape[0], self.num_classes, device=global_features.device)
+        for expert_idx in torch.unique(expert_indices).tolist():
+            expert_mask = expert_indices == expert_idx
+            fcfeatures = self.fcArr[expert_idx](local_features[expert_mask])
+            final_features = torch.cat((global_features[expert_mask], fcfeatures), dim=1)
+            outputs[expert_mask] = self.classifierArr[expert_idx](final_features)
+        return outputs
+
     def forward(self, x: torch.Tensor, return_features=False) -> torch.Tensor:
         if return_features:
             Freezed_global_features, Freezed_local_features, global_features, local_features = self.forward_fusion(x,
                                                                                                                    return_features=True)
-            return self.forward_expert(global_features,
-                                       local_features), Freezed_global_features, Freezed_local_features, global_features, local_features
+            return self.forward_experts(global_features,
+                                        local_features,
+                                        self.c_expert), Freezed_global_features, Freezed_local_features, global_features, local_features
         else:
             global_features, local_features = self.forward_fusion(x)
-            return self.forward_expert(global_features, local_features), global_features, local_features
+            return self.forward_experts(global_features, local_features, self.c_expert), global_features, local_features
 
     def forward_fusion(self, x, return_features=False):
 
@@ -162,10 +185,7 @@ class LEAR(MammothBackbone):
     def myprediction(self, x, index):
         with torch.no_grad():
             global_features, local_features = self.forward_fusion(x)
-            fcfeatures = self.fcArr[index](local_features)
-            final_features = torch.cat((global_features, fcfeatures), dim=1)
-            out = self.classifierArr[index](final_features)
-            return out
+            return self.forward_experts(global_features, local_features, index)
 
 
 @register_backbone("lear")

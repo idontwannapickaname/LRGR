@@ -33,6 +33,21 @@ except ImportError:
     wandb = None
 
 
+def _format_loss_log(loss, lr):
+    if isinstance(loss, float):
+        return {'loss': loss, 'lr': lr}
+
+    if isinstance(loss, list):
+        loss_names = ['loss_ce', 'loss_kd', 'loss_nor', 'loss_mi', 'loss_ctird']
+        bar_log = {'lr': lr}
+        for idx, value in enumerate(loss):
+            key = loss_names[idx] if idx < len(loss_names) else f'loss_{idx}'
+            bar_log[key] = value
+        return bar_log
+
+    return {'loss': loss, 'lr': lr}
+
+
 def initialize_wandb(args: Namespace) -> None:
     """
     Initializes wandb, if installed.
@@ -108,7 +123,8 @@ def train_single_epoch(model: ContinualModel,
 
         loss = model.meta_observe(inputs, labels, not_aug_inputs, epoch=epoch, **extra_fields)
 
-        assert not math.isnan(loss)
+        if isinstance(loss, float):
+            assert not math.isnan(loss)
 
         if scheduler is not None and args.scheduler_mode == 'iter':
             scheduler.step()
@@ -120,7 +136,7 @@ def train_single_epoch(model: ContinualModel,
 
         time_diff = time() - previous_time
         previous_time = time()
-        bar_log = {'loss': loss, 'lr': model.opt.param_groups[0]['lr']}
+        bar_log = _format_loss_log(loss, model.opt.param_groups[0]['lr'])
         if epoch_len:
             ep_h = 3600 / (epoch_len * time_diff)
             bar_log['ep/h'] = ep_h
