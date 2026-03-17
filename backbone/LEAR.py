@@ -117,12 +117,20 @@ class LEAR(MammothBackbone):
         if expert_indices.ndim == 0:
             return self.forward_experts(global_features, local_features, int(expert_indices.item()))
 
-        outputs = torch.empty(global_features.shape[0], self.num_classes, device=global_features.device)
-        for expert_idx in torch.unique(expert_indices).tolist():
+        unique_experts = torch.unique(expert_indices).tolist()
+        output_dim = max(self.classifierArr[expert_idx].out_features for expert_idx in unique_experts)
+        outputs = torch.full(
+            (global_features.shape[0], output_dim),
+            -1e9,
+            device=global_features.device,
+        )
+
+        for expert_idx in unique_experts:
             expert_mask = expert_indices == expert_idx
             fcfeatures = self.fcArr[expert_idx](local_features[expert_mask])
             final_features = torch.cat((global_features[expert_mask], fcfeatures), dim=1)
-            outputs[expert_mask] = self.classifierArr[expert_idx](final_features)
+            expert_outputs = self.classifierArr[expert_idx](final_features)
+            outputs[expert_mask, :expert_outputs.shape[1]] = expert_outputs
         return outputs
 
     def forward(self, x: torch.Tensor, return_features=False) -> torch.Tensor:

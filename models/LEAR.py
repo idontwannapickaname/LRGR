@@ -183,6 +183,20 @@ class LEAR(ContinualModel):
             out = self.net.myprediction(x,k)
         return out
 
+    @staticmethod
+    def _expand_logits(logits, target_dim, fill_value=-1e9):
+        if logits.shape[1] >= target_dim:
+            return logits
+        pad = logits.new_full((logits.shape[0], target_dim - logits.shape[1]), fill_value)
+        return torch.cat((logits, pad), dim=1)
+
+    @staticmethod
+    def _assign_masked_logits(logits, mask, candidate_logits, fill_value=-1e9):
+        logits = LEAR._expand_logits(logits, candidate_logits.shape[1], fill_value=fill_value)
+        logits[mask] = fill_value
+        logits[mask, :candidate_logits.shape[1]] = candidate_logits
+        return logits
+
     def hybrid_rematch_logits(self, inputs, base_expert_idx, n_classes=None):
         logits = self.myPrediction(inputs, base_expert_idx)
         stats = {
@@ -204,7 +218,8 @@ class LEAR(ContinualModel):
         stats['direct_candidates'] = int(direct_mask.sum().item())
         if direct_mask.any():
             logits = logits.clone()
-            logits[direct_mask] = self.myPrediction(inputs[direct_mask], top1_experts[direct_mask])
+            direct_logits = self.myPrediction(inputs[direct_mask], top1_experts[direct_mask])
+            logits = self._assign_masked_logits(logits, direct_mask, direct_logits)
             stats['direct_applied'] = stats['direct_candidates']
 
         if ranked_experts.shape[1] < 2:
@@ -235,7 +250,9 @@ class LEAR(ContinualModel):
             better_mask = candidate_conf > current_conf
             if better_mask.any():
                 selected_indices = confidence_mask.nonzero(as_tuple=False).flatten()[better_mask]
-                logits[selected_indices] = candidate_logits[better_mask]
+                selected_mask = torch.zeros_like(confidence_mask, dtype=torch.bool)
+                selected_mask[selected_indices] = True
+                logits = self._assign_masked_logits(logits, selected_mask, candidate_logits[better_mask])
                 stats['confidence_applied'] = int(better_mask.sum().item())
 
         self.last_rematch_stats = stats
