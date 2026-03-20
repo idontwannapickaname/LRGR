@@ -379,6 +379,8 @@ def add_management_args(parser: ArgumentParser) -> None:
     mng_group.add_argument('--ckpt_name', type=str, help='(optional) checkpoint save name.')
     mng_group.add_argument('--start_from', type=int, default=None, help="Task to start from")
     mng_group.add_argument('--stop_after', type=int, default=None, help="Task limit")
+    mng_group.add_argument('--cleanup_dataset', type=binary_to_boolean_type, default=0,
+                           help='Remove dataset files after each task completes training. Useful for Kaggle with limited disk space.')
 
     wandb_group = parser.add_argument_group('Wandb arguments', 'Arguments to manage logging on Wandb.')
 

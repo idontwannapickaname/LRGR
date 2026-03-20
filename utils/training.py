@@ -14,6 +14,7 @@ from typing import Iterable, Tuple
 import logging
 import torch
 from tqdm import tqdm
+import shutil
 
 from datasets import get_dataset
 from datasets.utils.continual_dataset import ContinualDataset, MammothDatasetWrapper
@@ -23,6 +24,7 @@ from models.utils.future_model import FutureModel
 
 from utils import disable_logging
 from utils.checkpoints import mammoth_load_checkpoint, save_mammoth_checkpoint
+from utils.conf import base_path
 from utils.loggers import log_extra_metrics, log_accs, Logger
 from utils.schedulers import get_scheduler
 from utils.stats import track_system_stats
@@ -129,6 +131,51 @@ def train_single_epoch(model: ContinualModel,
 
     if scheduler is not None and args.scheduler_mode == 'epoch':
         scheduler.step()
+
+
+def cleanup_dataset_files(dataset_name: str, base_path_str: str) -> None:
+    """
+    Removes downloaded dataset files to free up disk space.
+    Useful for environments with limited storage (e.g., Kaggle).
+
+    Args:
+        dataset_name: the name of the dataset (e.g., 'cifar10', 'cifar100')
+        base_path_str: the base path where datasets are stored
+    """
+    # Map dataset names to their typical directory names
+    dataset_dir_map = {
+        'seq-cifar10': 'cifar-10-batches-py',
+        'seq-cifar100': 'cifar-100-python',
+        'seq-tinyimagenet': 'tiny-imagenet-200',
+        'seq-tinyimagenet_r': 'tiny-imagenet-200',
+        'seq-imagenet_r': 'imagenet-r',
+        'perm-mnist': 'mnist',
+        'rot-mnist': 'mnist', 
+        'seq-mnist': 'mnist',
+        'mnist-360': 'mnist',
+        'seq-cars196': 'cars196',
+        'seq-cub200': 'cub200',
+        'seq-cub200_rs': 'cub200',
+        'seq-celeba': 'celeba',
+        'seq-eurosat_rgb': 'eurosat',
+        'seq-resisc45': 'resisc45',
+        'seq-isic': 'isic',
+        'seq-chestx': 'chestx',
+        'seq-cropdisease': 'cropdisease',
+        'seq-mit67': 'mit67',
+    }
+
+    dataset_dir = dataset_dir_map.get(dataset_name, dataset_name.lower())
+    dataset_path = os.path.join(base_path_str, dataset_dir)
+
+    if os.path.exists(dataset_path):
+        try:
+            shutil.rmtree(dataset_path)
+            logging.info(f"Cleaned up dataset files at {dataset_path}")
+        except Exception as e:
+            logging.warning(f"Could not remove dataset directory {dataset_path}: {e}")
+    else:
+        logging.debug(f"Dataset directory not found at {dataset_path}, skipping cleanup")
 
 
 def train(model: ContinualModel, dataset: ContinualDataset,
@@ -334,6 +381,9 @@ def train(model: ContinualModel, dataset: ContinualDataset,
                                         results=[results, results_mask_classes, logger.dump()],
                                         optimizer_st=model.opt.state_dict() if hasattr(model, 'opt') else None,
                                         scheduler_st=scheduler.state_dict() if scheduler is not None else None)
+
+            if args.cleanup_dataset:
+                cleanup_dataset_files(dataset.NAME, base_path())
 
         if args.validation:
             # Final evaluation on the real test set
